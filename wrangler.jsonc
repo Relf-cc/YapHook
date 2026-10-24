@@ -1,0 +1,11 @@
+// Cloudflare Workers (static assets only — no server code needed,
+// Yapin's webhook API allows CORS from any origin).
+{
+  "name": "yaphook",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [{ "pattern": "yaphook.dev", "custom_domain": true }]
+}
