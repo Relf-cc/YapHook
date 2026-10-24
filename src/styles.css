@@ -1262,8 +1262,10 @@ input[type="datetime-local"].input {
   z-index: 50;
   background: #07080acc;
   backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
+  /* Flex, not grid: an auto grid track grows to the textarea's unwrapped JSON width and pushes the modal off-screen. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 16px;
   animation: fade 0.12s ease-out;
 }
