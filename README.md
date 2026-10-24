@@ -2,6 +2,7 @@
 
 Message and embed builder for [Yapin'](https://yapin.gg) webhooks, in the spirit of
 [Discohook](https://github.com/discohook/discohook). Live at **https://yaphook.dev**.
+Questions or ideas? Join the [YapHook server](https://yapin.gg/invite/yaphook).
 
 - Rich embeds: author, title, description, colour, up to 25 fields, image, thumbnail, footer, timestamp
 - Multiple messages and multiple webhooks per send

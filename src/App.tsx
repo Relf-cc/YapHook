@@ -282,6 +282,10 @@ export default function App() {
                 >
                   Help &amp; formatting guide
                 </a>
+                {" · "}
+                <a href="https://yapin.gg/invite/yaphook" target="_blank" rel="noreferrer">
+                  Join the YapHook server
+                </a>
               </footer>
             </div>
           </section>

@@ -279,6 +279,10 @@ export function Help({ onOpenBuilder }: { onOpenBuilder: () => void }) {
           <a href="https://github.com/discohook/discohook" target="_blank" rel="noreferrer">
             Discohook
           </a>
+          . Questions or ideas?{" "}
+          <a href="https://yapin.gg/invite/yaphook" target="_blank" rel="noreferrer">
+            Join the YapHook server
+          </a>
           .
         </footer>
       </article>
