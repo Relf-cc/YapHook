@@ -9,7 +9,13 @@ Questions or ideas? Join the [YapHook server](https://yapin.gg/invite/yaphook).
 - Live preview with Discord-style markdown (`**bold**`, spoilers, code blocks, `<t:…>` timestamps…)
 - JSON editor per message, full backup/import (accepts Discohook backups too)
 - Share links (`#data=…`) that never contain webhook URLs
-- Autosaves to `localStorage`; built-in help page at `/#help`
+- Autosaves to `localStorage`
+- Help built into the app at `/#help`: searchable, deep-linkable (`#help/formatting`,
+  `#help/faq-image`), with loadable example messages, a formatting/timestamp reference and a
+  troubleshooting list. `?` opens it, `Ctrl`/`⌘`+`Enter` sends.
+- Guidance where people get stuck: a three-step checklist that ticks itself off, specific
+  explanations for bad webhook URLs and API errors (`src/diagnostics.ts`), and a `?` beside each
+  editor card that jumps to the matching help section
 
 It's a fully static site. Yapin's webhook API sends `Access-Control-Allow-Origin: *`, so the
 browser posts to `https://www.yapin.gg/api/webhooks/<id>/<token>` directly and there is no backend.

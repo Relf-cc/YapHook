@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageS,
   TargetS,
@@ -14,17 +14,22 @@ import {
   validateMessage,
   webhookApiUrl,
 } from "./model";
+import { explainApiError } from "./diagnostics";
 import { KEYS, load, save } from "./storage";
 import { welcome } from "./welcome";
 import { MessageEditor, move } from "./components/Editor";
+import { Guide, GuideStep } from "./components/Guide";
 import { Help } from "./components/Help";
 import { JsonModal, JsonModalSpec } from "./components/JsonModal";
 import { Preview } from "./components/Preview";
 import { InfoState, Targets } from "./components/Targets";
 import { Toasts, useToasts } from "./components/Toasts";
-import { Icon } from "./components/ui";
+import { HelpLink, Icon } from "./components/ui";
 
 type View = "builder" | "help";
+type GuideState = { hidden?: boolean; sent?: boolean };
+type Problem = { label: string; message: string; fix?: string; help?: string };
+type Report = { ok: number; fail: number; problems: Problem[] };
 
 // Read once at startup; the hash is cleared after loading so reloads don't re-import.
 const SHARED = readShared();
@@ -49,7 +54,7 @@ function initialTargets(): TargetS[] {
   return urls.map((url) => ({ id: uid(), url: String(url) }));
 }
 
-const viewFromHash = (): View => (location.hash === "#help" ? "help" : "builder");
+const viewFromHash = (): View => (location.hash.startsWith("#help") ? "help" : "builder");
 
 export default function App() {
   const [messages, setMessages] = useState<MessageS[]>(initialMessages);
@@ -59,6 +64,8 @@ export default function App() {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [modal, setModal] = useState<JsonModalSpec | null>(null);
   const [sending, setSending] = useState(false);
+  const [report, setReport] = useState<Report | null>(null);
+  const [guide, setGuide] = useState<GuideState>(() => load<GuideState>(KEYS.guide) ?? {});
   const { toasts, push, dismiss } = useToasts();
 
   useEffect(() => {
@@ -73,17 +80,24 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const goTo = (v: View) => {
-    history.pushState(null, "", v === "help" ? "#help" : location.pathname);
+  const goTo = useCallback((v: View, section?: string) => {
+    history.pushState(null, "", v === "help" ? `#help${section ? `/${section}` : ""}` : location.pathname);
     setView(v);
     window.scrollTo(0, 0);
-  };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => save(KEYS.messages, toBackup(messages)), 250);
     return () => clearTimeout(t);
   }, [messages]);
   useEffect(() => save(KEYS.targets, targets.map((t) => t.url).filter(Boolean)), [targets]);
+
+  const setGuideState = (p: Partial<GuideState>) =>
+    setGuide((g) => {
+      const next = { ...g, ...p };
+      save(KEYS.guide, next);
+      return next;
+    });
 
   const onInfo = useCallback((id: string, s: InfoState) => setInfos((m) => ({ ...m, [id]: s })), []);
 
@@ -96,24 +110,56 @@ export default function App() {
   const firstInfo = ready.length ? infos[ready[0].id].info : undefined;
 
   const send = async () => {
-    if (!ready.length) return push("err", "Add a valid Yapin webhook URL first");
-    if (errors.length) return push("err", `Fix before sending: ${errors[0]}`);
+    if (!ready.length) {
+      setReport({
+        ok: 0,
+        fail: 0,
+        problems: [
+          {
+            label: "No webhook yet",
+            message: "YapHook doesn't know where to post.",
+            fix: "Paste a Yapin' webhook URL into the Webhooks box above and wait for it to show a green name.",
+            help: "faq-find-webhook",
+          },
+        ],
+      });
+      return push("err", "Add a valid Yapin' webhook URL first");
+    }
+    if (errors.length) {
+      setReport(null);
+      return push("err", `Fix before sending: ${errors[0]}`);
+    }
+
     setSending(true);
+    setReport(null);
+    const problems: Problem[] = [];
     let ok = 0;
-    let fail = 0;
     for (const t of ready) {
       for (const [i, m] of messages.entries()) {
         try {
           await postMessage(webhookApiUrl(t.url)!, toPayload(m));
           ok++;
         } catch (e) {
-          fail++;
-          push("err", `Message ${i + 1} → ${infos[t.id]?.info?.name ?? "webhook"}: ${(e as Error).message}`);
+          const d = explainApiError((e as Error).message);
+          problems.push({
+            label: `Message ${i + 1} → ${infos[t.id]?.info?.name ?? "webhook"}`,
+            message: d.message,
+            fix: d.fix,
+            help: d.help,
+          });
         }
       }
     }
     setSending(false);
-    if (ok) push("ok", `Sent ${ok} message${ok === 1 ? "" : "s"}${fail ? ` · ${fail} failed` : ""}`);
+
+    if (problems.length) {
+      setReport({ ok, fail: problems.length, problems: problems.slice(0, 5) });
+      push("err", problems[0].message);
+    }
+    if (ok) {
+      push("ok", `Sent ${ok} message${ok === 1 ? "" : "s"}${problems.length ? ` · ${problems.length} failed` : ""}`);
+      if (!guide.sent) setGuideState({ sent: true });
+    }
   };
 
   const share = async () => {
@@ -153,8 +199,61 @@ export default function App() {
     });
 
   const clearAll = () => {
-    if (confirm("Clear all messages and start fresh?")) setMessages([newMessage()]);
+    if (confirm("Clear all messages and start fresh? This can't be undone — take a JSON backup first if you need one."))
+      setMessages([newMessage()]);
   };
+
+  const loadExample = (msgs: MessageS[], name: string) => {
+    if (!confirm(`Load the “${name}” example? It replaces the messages you have now.`)) return;
+    setMessages(msgs);
+    setReport(null);
+    goTo("builder");
+    push("ok", `Loaded “${name}” — edit anything you like`);
+  };
+
+  // Keyboard shortcuts. Refs keep the handler stable without going stale.
+  const live = useRef({ send, goTo, modal });
+  live.current = { send, goTo, modal };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (live.current.modal) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        void live.current.send();
+        return;
+      }
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName));
+      if (e.key === "?" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !location.hash.startsWith("#help")) {
+        e.preventDefault();
+        live.current.goTo("help");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const hasBody = messages.some((m) => m.content.trim() || m.embeds.length);
+  const steps: GuideStep[] = [
+    {
+      label: "Add a webhook",
+      hint: "Paste the URL from your Yapin' channel settings into the box below.",
+      done: ready.length > 0,
+      help: "faq-find-webhook",
+    },
+    {
+      label: "Write your message",
+      hint: "Type into Content, or press Add embed. The preview updates as you type.",
+      done: hasBody && !errors.length,
+      help: "building",
+    },
+    {
+      label: "Send it",
+      hint: "Press Send, or Ctrl+Enter. Sent messages can't be edited, so check the preview first.",
+      done: !!guide.sent,
+      help: "start",
+    },
+  ];
 
   return (
     <div className={`app view-${view}`}>
@@ -173,7 +272,12 @@ export default function App() {
           <button type="button" className={view === "builder" ? "on" : ""} onClick={() => goTo("builder")}>
             Builder
           </button>
-          <button type="button" className={view === "help" ? "on" : ""} onClick={() => goTo("help")}>
+          <button
+            type="button"
+            className={view === "help" ? "on" : ""}
+            onClick={() => goTo("help")}
+            title="Help, formatting reference and troubleshooting (?)"
+          >
             Help
           </button>
         </nav>
@@ -203,7 +307,7 @@ export default function App() {
                 className="btn primary"
                 onClick={send}
                 disabled={sending}
-                title={errors[0] ?? (ready.length ? "Send to webhook" : "Add a webhook URL first")}
+                title={errors[0] ?? (ready.length ? "Send to webhook (Ctrl+Enter)" : "Add a webhook URL first")}
               >
                 {sending ? <span className="spinner" /> : <Icon name="send" />}
                 {sending ? "Sending…" : ready.length > 1 ? `Send to ${ready.length}` : "Send"}
@@ -215,12 +319,14 @@ export default function App() {
 
       {view === "help" ? (
         <main className="help-pane">
-          <Help onOpenBuilder={() => goTo("builder")} />
+          <Help onOpenBuilder={() => goTo("builder")} onLoadExample={loadExample} />
         </main>
       ) : (
         <main className={`layout show-${tab}`}>
           <section className="pane editor-pane" aria-label="Editor">
             <div className="pane-inner">
+              {!guide.hidden && <Guide steps={steps} onDismiss={() => setGuideState({ hidden: true })} />}
+
               <Targets targets={targets} setTargets={setTargets} onInfo={onInfo} />
 
               {messages.map((m, i) => (
@@ -258,10 +364,41 @@ export default function App() {
                   <div className="issues-head">
                     <Icon name="alert" size={14} /> {errors.length} issue{errors.length === 1 ? "" : "s"} to fix before
                     sending
+                    <span className="spacer" />
+                    <HelpLink to="limits" text="What do these mean?" label="Help with limits and issues" />
                   </div>
                   <ul>
                     {errors.slice(0, 8).map((e, i) => (
                       <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {report && (
+                <div className="issues report" role="status">
+                  <div className="issues-head">
+                    <Icon name="alert" size={14} />{" "}
+                    {report.ok
+                      ? `Sent ${report.ok}, but ${report.fail} failed`
+                      : report.fail
+                        ? "Nothing was sent"
+                        : "Can't send yet"}
+                    <span className="spacer" />
+                    <button type="button" className="help-link" onClick={() => setReport(null)}>
+                      Dismiss
+                    </button>
+                  </div>
+                  <ul>
+                    {report.problems.map((p, i) => (
+                      <li key={i}>
+                        <strong>{p.label}:</strong> {p.message}
+                        {p.fix && (
+                          <span className="report-fix">
+                            {p.fix} {p.help && <HelpLink to={p.help} text="Open help" label="Open help" />}
+                          </span>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { TargetS, WebhookInfo, fetchWebhook, uid, webhookApiUrl } from "../model";
-import { Card, Icon, IconButton } from "./ui";
+import { explainApiError, explainWebhookUrl } from "../diagnostics";
+import { Card, HelpLink, Icon, IconButton } from "./ui";
 
 export type InfoState = { status: "idle" | "loading" | "ok" | "error"; info?: WebhookInfo; error?: string };
 
@@ -28,7 +29,7 @@ function TargetRow({
 
   useEffect(() => {
     if (!target.url.trim()) return update({ status: "idle" });
-    if (!api) return update({ status: "error", error: "Not a Yapin webhook URL" });
+    if (!api) return update({ status: "error", error: explainWebhookUrl(target.url).message });
     const ctrl = new AbortController();
     update({ status: "loading" });
     const t = setTimeout(() => {
@@ -41,6 +42,10 @@ function TargetRow({
       ctrl.abort();
     };
   }, [api, target.url]);
+
+  // Say what is actually wrong: a malformed URL and a rejected token need different fixes.
+  const problem =
+    state.status === "error" ? (api ? explainApiError(state.error ?? "") : explainWebhookUrl(target.url)) : null;
 
   return (
     <div className={`target ${state.status}`}>
@@ -59,10 +64,18 @@ function TargetRow({
       </div>
       <div className="target-status">
         {state.status === "loading" && <span className="muted">Checking…</span>}
-        {state.status === "error" && (
-          <span className="err">
-            <Icon name="alert" size={14} /> {state.error}
-          </span>
+        {problem && (
+          <div className="target-problem">
+            <span className="err">
+              <Icon name="alert" size={14} /> {problem.message}
+            </span>
+            {problem.fix && (
+              <span className="target-fix">
+                {problem.fix}{" "}
+                {problem.help && <HelpLink to={problem.help} text="Show me how" label="Open help" />}
+              </span>
+            )}
+          </div>
         )}
         {state.status === "ok" && state.info && (
           <span className="ok">
@@ -77,7 +90,8 @@ function TargetRow({
         )}
         {state.status === "idle" && (
           <span className="muted">
-            Paste a webhook URL from your Yapin&apos; server settings. It&apos;s stored only in this browser.
+            Paste a webhook URL from your Yapin&apos; channel settings — it&apos;s stored only in this browser.{" "}
+            <HelpLink to="faq-find-webhook" text="Where do I find one?" label="How to create a webhook" />
           </span>
         )}
       </div>
@@ -95,7 +109,7 @@ export function Targets({
   onInfo: (id: string, s: InfoState) => void;
 }) {
   return (
-    <Card title="Webhooks" badge={targets.length > 1 ? `${targets.length} targets` : undefined}>
+    <Card title="Webhooks" help="webhooks" badge={targets.length > 1 ? `${targets.length} targets` : undefined}>
       {targets.map((t, i) => (
         <TargetRow
           key={t.id}

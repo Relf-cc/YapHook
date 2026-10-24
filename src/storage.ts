@@ -3,6 +3,7 @@
 export const KEYS = {
   messages: "yaphook:messages",
   targets: "yaphook:targets",
+  guide: "yaphook:guide",
 };
 
 export function load<T>(key: string): T | null {

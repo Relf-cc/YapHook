@@ -34,6 +34,21 @@ const PATHS: Record<string, ReactNode> = {
   ),
   edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
   reset: <path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4.3-4.3" />
+    </>
+  ),
+  question: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.2-2.8 4m0 2.7h.01" />
+    </>
+  ),
+  bulb: <path d="M9 18h6m-5 3h4M8.5 14a5.5 5.5 0 1 1 7 0c-.8.7-1.2 1.5-1.4 2.5h-4.2c-.2-1-.6-1.8-1.4-2.5z" />,
+  book: <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5V4.5m16 13.5v4H6.5" />,
+  external: <path d="M14 4h6v6m0-6-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
 };
 
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {
@@ -81,12 +96,39 @@ export function IconButton({
   );
 }
 
+/**
+ * Jumps to a section of the help page. Plain anchor, so the hash router in App
+ * picks it up and the help page scrolls to the matching heading.
+ */
+export function HelpLink({
+  to,
+  label = "What's this?",
+  text,
+}: {
+  to: string;
+  label?: string;
+  text?: ReactNode;
+}) {
+  return (
+    <a
+      className={text ? "help-link" : "help-dot"}
+      href={`#help/${to}`}
+      title={label}
+      aria-label={text ? undefined : label}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {text ?? <Icon name="question" size={14} />}
+    </a>
+  );
+}
+
 export function Card({
   title,
   badge,
   actions,
   children,
   accent,
+  help,
   level = 0,
   defaultOpen = true,
 }: {
@@ -95,6 +137,8 @@ export function Card({
   actions?: ReactNode;
   children: ReactNode;
   accent?: string;
+  /** Help section to link from the header, e.g. "webhooks". */
+  help?: string;
   level?: 0 | 1 | 2;
   defaultOpen?: boolean;
 }) {
@@ -109,6 +153,7 @@ export function Card({
           <Icon name="chevron" />
         </span>
         <span className="card-title">{title}</span>
+        {help && <HelpLink to={help} label={`Help: ${typeof title === "string" ? title.toLowerCase() : "this section"}`} />}
         {badge && <span className="card-badge">{badge}</span>}
         <div className="card-actions" onClick={(e) => e.stopPropagation()}>
           {actions}

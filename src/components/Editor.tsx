@@ -8,7 +8,7 @@ import {
   newEmbed,
   newField,
 } from "../model";
-import { Card, ColorPicker, Icon, IconButton, TextField, Toggle, isoToLocalInput } from "./ui";
+import { Card, ColorPicker, HelpLink, Icon, IconButton, TextField, Toggle, isoToLocalInput } from "./ui";
 
 export function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
   const j = i + dir;
@@ -60,6 +60,7 @@ export function MessageEditor({
   return (
     <Card
       title={`Message ${ctl.index + 1}`}
+      help="building"
       badge={preview || undefined}
       actions={
         <>
@@ -76,9 +77,15 @@ export function MessageEditor({
         max={LIMITS.content}
         placeholder="Say something… **markdown** works, as do <t:1700000000:R> timestamps."
         onChange={(content) => set({ content })}
+        hint={
+          <>
+            Markdown, mentions and timestamps all work here.{" "}
+            <HelpLink to="formatting" text="Formatting reference" label="Formatting reference" />
+          </>
+        }
       />
 
-      <Card title="Profile" level={1} defaultOpen={!!(m.username || m.avatarUrl)}>
+      <Card title="Profile" help="profile" level={1} defaultOpen={!!(m.username || m.avatarUrl)}>
         <div className="grid2">
           <TextField
             label="Username"
@@ -93,6 +100,12 @@ export function MessageEditor({
             value={m.avatarUrl}
             placeholder="https://…/avatar.png"
             onChange={(avatarUrl) => set({ avatarUrl })}
+            hint={
+              <>
+                Direct link to an image file.{" "}
+                <HelpLink to="faq-image" text="Not showing?" label="Why an image might not show" />
+              </>
+            }
           />
         </div>
       </Card>
@@ -145,10 +158,11 @@ function EmbedEditor({
       level={1}
       accent={e.color || "#4b4d57"}
       title={`Embed ${ctl.index + 1}`}
+      help="embeds"
       badge={e.title || e.authorName || undefined}
       actions={<Controls {...ctl} dupDisabled={dupDisabled} />}
     >
-      <Card title="Author" level={2} defaultOpen={!!e.authorName}>
+      <Card title="Author" help="embeds" level={2} defaultOpen={!!e.authorName}>
         <TextField label="Name" value={e.authorName} max={LIMITS.author} onChange={(authorName) => set({ authorName })} />
         <div className="grid2">
           <TextField label="URL" type="url" value={e.authorUrl} placeholder="https://" onChange={(authorUrl) => set({ authorUrl })} />
@@ -156,7 +170,7 @@ function EmbedEditor({
         </div>
       </Card>
 
-      <Card title="Body" level={2}>
+      <Card title="Body" help="formatting" level={2}>
         <TextField label="Title" value={e.title} max={LIMITS.title} onChange={(title) => set({ title })} />
         <TextField label="Title URL" type="url" value={e.url} placeholder="https://" onChange={(url) => set({ url })} />
         <TextField
@@ -172,6 +186,7 @@ function EmbedEditor({
 
       <Card
         title="Fields"
+        help="fields"
         level={2}
         badge={e.fields.length ? `${e.fields.length}/${LIMITS.fields}` : undefined}
         defaultOpen={e.fields.length > 0}
@@ -201,17 +216,37 @@ function EmbedEditor({
         </div>
       </Card>
 
-      <Card title="Images" level={2} defaultOpen={!!(e.image || e.thumbnail)}>
-        <TextField label="Image URL" type="url" value={e.image} placeholder="https://…/banner.png" onChange={(image) => set({ image })} />
-        <TextField label="Thumbnail URL" type="url" value={e.thumbnail} placeholder="https://…/thumb.png" onChange={(thumbnail) => set({ thumbnail })} />
+      <Card title="Images" help="images" level={2} defaultOpen={!!(e.image || e.thumbnail)}>
+        <TextField
+          label="Image URL"
+          type="url"
+          value={e.image}
+          placeholder="https://…/banner.png"
+          onChange={(image) => set({ image })}
+          hint={
+            <>
+              Wide picture under the embed. Needs a direct link to the file.{" "}
+              <HelpLink to="faq-image" text="Not showing?" label="Why an image might not show" />
+            </>
+          }
+        />
+        <TextField
+          label="Thumbnail URL"
+          type="url"
+          value={e.thumbnail}
+          placeholder="https://…/thumb.png"
+          onChange={(thumbnail) => set({ thumbnail })}
+          hint="Small picture in the top-right corner."
+        />
       </Card>
 
-      <Card title="Footer" level={2} defaultOpen={!!(e.footerText || e.timestamp)}>
+      <Card title="Footer" help="footer" level={2} defaultOpen={!!(e.footerText || e.timestamp)}>
         <TextField label="Text" value={e.footerText} max={LIMITS.footer} onChange={(footerText) => set({ footerText })} />
         <TextField label="Icon URL" type="url" value={e.footerIcon} placeholder="https://" onChange={(footerIcon) => set({ footerIcon })} />
         <div className="fld">
           <span className="fld-label">
             <span>Timestamp</span>
+            <HelpLink to="footer" text="Shown in each reader's time zone" label="About timestamps" />
           </span>
           <div className="ts-row">
             <input
